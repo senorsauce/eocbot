@@ -114,7 +114,7 @@ async def faction(ctx):
 
 
 @bot.command()
-async def addloner(ctx, player_name: str):
+async def loneradd(ctx, player_name: str):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
 
@@ -359,7 +359,7 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
 
 
 @bot.command()
-async def questnumbercompleted(ctx, player_name: str):
+async def lonerstats(ctx, player_name: str):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
 
@@ -401,30 +401,34 @@ async def help(ctx):
 **📜 Bot Commands**
 
 **Faction Setup**
-!setupfaction [Faction] — Assign this server to a faction. Admin only.
-!faction — Show this server's assigned faction.
+!setupfaction [Faction] 
+ → Assign this server to a faction. Admin only.
+!faction 
+ → Show this server's assigned faction.
 
 **Players**
-!addloner "Player Name" — Add a player to this faction's database.
+!loneradd "Loner Name" 
+ → Add a loner to your faction database.
+
+!lonerstats "Loner Name" 
+ → Show completed quest count and reputation total.
 
 **Quests**
+ ** Make sure to add the loner's name to the database before attempting to assign/retrieve quests
+
 !questgive "Player Name" "Quest Title" [notes]
-→ Assign a quest to an existing player.
+ → Assign a quest to an existing loner.
+ ** Make sure to add the loner's name to the database before attempting to assign/retrieve quests
 
-Example:
-!questgive "Stalker Ivan" "Artifact Hunt" Retrieve a Night Star from Agroprom
+!questshowplayer "Player Name"
+ → Show active quests for a chosen loner.
 
-!questshowplayer "Player Name" — Show active quests for one player.
-!questshowall — Show all active quests for this faction.
+!questshowall 
+ → Show all active quests for your faction.
 
 **Quest Completion**
-!questgivereward "Player Name" [quest_id] "Reward" [reputation]
-→ Complete a quest, remove it from active quests, add reputation, and increase completed quests by 1.
-
-Example:
-!questgivereward "Stalker Ivan" 4 "3000 RU and medkit" 10
-
-!questnumbercompleted "Player Name" — Show completed quest count and total reputation.
+!questgivereward "Loner Name" [quest_id] "Reward" [reputation]
+→ Complete a quest, remove it from active quests, and add reputation to the loner who completed it.
 
 **Utility**
 !ping — Check if bot is alive.
