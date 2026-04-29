@@ -99,12 +99,12 @@ async def faction(ctx):
 
 
 @bot.command()
-async def questgive(ctx, title: str, *, description: str = ""):
+async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet. An admin must use `!setupfaction` first.")
+        await ctx.send("This server has not been assigned to a faction yet. Use `!setupfaction` first.")
         return
 
     db = getDbConnection()
@@ -118,8 +118,8 @@ async def questgive(ctx, title: str, *, description: str = ""):
         (
             guildId,
             factionName,
-            title,
-            description,
+            quest,
+            f"{player_name} | {notes}",
             ctx.author.id
         )
     )
@@ -131,9 +131,12 @@ async def questgive(ctx, title: str, *, description: str = ""):
     db.close()
 
     await ctx.send(
-        f"Quest created for **{factionName}**.\n"
-        f"Quest ID: `{questId}`\n"
-        f"Title: **{title}**"
+        f"**Quest Assigned**\n"
+        f"Faction: **{factionName}**\n"
+        f"Player: **{player_name}**\n"
+        f"Quest: **{quest}**\n"
+        f"Notes: {notes if notes else 'None'}\n"
+        f"ID: `{questId}`"
     )
 
 
