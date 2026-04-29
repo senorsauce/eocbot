@@ -75,7 +75,7 @@ async def ping(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setupfaction(ctx, faction: str):
-    allowedFactions = ["Freedom", "Duty", "Bandit", "Ecologist", "Military", "Test"]
+    allowedFactions = ["Freedom", "Duty", "Bandit", "Ecologist", "Military", "Granit"]
 
     if faction not in allowedFactions:
         await ctx.send(f"Invalid faction. Use one of: {', '.join(allowedFactions)}")
