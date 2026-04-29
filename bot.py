@@ -149,6 +149,53 @@ async def loneradd(ctx, player_name: str):
 
     await ctx.send(f"Player **{player_name}** has been added to **{factionName}**.")
 
+@bot.command()
+async def lonereditstatus(ctx, player_name: str, status: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    allowedStatuses = [
+        "Hostile",
+        "Untrustworthy",
+        "Neutral",
+        "Known",
+        "Trusted",
+        "Respected"
+    ]
+
+    if status not in allowedStatuses:
+        await ctx.send(
+            f"Invalid status. Use one of: {', '.join(allowedStatuses)}"
+        )
+        return
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE player_stats
+        SET status = %s
+        WHERE guild_id = %s AND faction = %s AND player_name = %s
+        """,
+        (status, guildId, factionName, player_name)
+    )
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(
+        f"**{player_name}** status changed to **{status}** for **{factionName}**."
+    )
 
 @bot.command()
 async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
@@ -414,6 +461,10 @@ async def help(ctx):
 
 !lonerstats "Loner Name" 
  → Show completed quest count and reputation total.
+
+ !lonereditstatus "Loner Name" [Status]
+  → Change a loner's status to:
+      - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
