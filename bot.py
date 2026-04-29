@@ -3,6 +3,7 @@ import discord
 import mysql.connector
 from discord.ext import commands
 
+# Retrieve token
 token = os.getenv("DISCORD_TOKEN")
 
 if not token:
