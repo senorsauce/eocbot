@@ -198,6 +198,43 @@ async def lonereditstatus(ctx, player_name: str, status: str):
     )
 
 @bot.command()
+async def lonerstats(ctx, player_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT reputation, numQuestsCompleted
+        FROM player_stats
+        WHERE guild_id = %s AND faction = %s AND player_name = %s
+        """,
+        (guildId, factionName, player_name)
+    )
+
+    stats = cursor.fetchone()
+
+    cursor.close()
+    db.close()
+
+    if not stats:
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
+    await ctx.send(
+        f"**{player_name} Stats**\n"
+        f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
+        f"Reputation: **{stats['reputation']}**"
+    )
+
+
+@bot.command()
 async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
@@ -403,44 +440,6 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         f"Reward: **{reward}**\n"
         f"Reputation Gained: **{reputation}**"
     )
-
-
-@bot.command()
-async def lonerstats(ctx, player_name: str):
-    guildId = ctx.guild.id
-    factionName = getFactionForGuild(guildId)
-
-    if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
-        return
-
-    db = getDbConnection()
-    cursor = db.cursor(dictionary=True)
-
-    cursor.execute(
-        """
-        SELECT reputation, numQuestsCompleted
-        FROM player_stats
-        WHERE guild_id = %s AND faction = %s AND player_name = %s
-        """,
-        (guildId, factionName, player_name)
-    )
-
-    stats = cursor.fetchone()
-
-    cursor.close()
-    db.close()
-
-    if not stats:
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
-        return
-
-    await ctx.send(
-        f"**{player_name} Stats**\n"
-        f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
-        f"Reputation: **{stats['reputation']}**"
-    )
-
 
 @bot.command()
 async def help(ctx):
