@@ -206,6 +206,13 @@ async def lonerstats(ctx, player_name: str):
         await ctx.send("This server has not been assigned to a faction yet.")
         return
 
+    # Optional normalization (recommended)
+    player_name = player_name.strip()
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
     db = getDbConnection()
     cursor = db.cursor(dictionary=True)
 
@@ -223,13 +230,14 @@ async def lonerstats(ctx, player_name: str):
     cursor.close()
     db.close()
 
-    if not stats:
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
-        return
+    # Safety fallback
+    status = stats.get("status") if stats else None
+    if not status:
+        status = "Neutral"
 
     await ctx.send(
-        f"**{player_name} Stats**\n"
-        f"Status: **{stats['status']}**\n"
+        f"**{player_name} — {factionName}**\n"
+        f"Status: **{status}**\n"
         f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
         f"Reputation: **{stats['reputation']}**"
     )
