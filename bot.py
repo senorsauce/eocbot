@@ -211,7 +211,7 @@ async def lonerstats(ctx, player_name: str):
 
     cursor.execute(
         """
-        SELECT reputation, numQuestsCompleted
+        SELECT reputation, numQuestsCompleted, status
         FROM player_stats
         WHERE guild_id = %s AND faction = %s AND player_name = %s
         """,
@@ -229,6 +229,7 @@ async def lonerstats(ctx, player_name: str):
 
     await ctx.send(
         f"**{player_name} Stats**\n"
+        f"Status: **{stats['status']}**\n"
         f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
         f"Reputation: **{stats['reputation']}**"
     )
