@@ -11,7 +11,7 @@ if not token:
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 
 def getDbConnection():
@@ -178,5 +178,21 @@ async def quests(ctx):
 
     await ctx.send(message)
 
+@bot.command()
+async def help(ctx):
+    message = """
+**Bot Commands**
+
+!setupfaction [Faction] — Assign this server to a faction (Admin only)
+!faction — Show this server's faction
+
+!questgive "Title" Description — Create a quest
+!quests — Show recent quests
+
+!ping — Check if bot is alive
+!hello — Say hello
+
+"""
+    await ctx.send(message)
 
 bot.run(token)
