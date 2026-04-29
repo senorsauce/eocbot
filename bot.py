@@ -3,7 +3,6 @@ import discord
 import mysql.connector
 from discord.ext import commands
 
-# Retrieve token
 token = os.getenv("DISCORD_TOKEN")
 
 if not token:
@@ -39,10 +38,28 @@ def getFactionForGuild(guildId):
     cursor.close()
     db.close()
 
-    if result:
-        return result["faction"]
+    return result["faction"] if result else None
 
-    return None
+
+def playerExists(guildId, factionName, playerName):
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT 1
+        FROM player_stats
+        WHERE guild_id = %s AND faction = %s AND player_name = %s
+        """,
+        (guildId, factionName, playerName)
+    )
+
+    result = cursor.fetchone()
+
+    cursor.close()
+    db.close()
+
+    return result is not None
 
 
 @bot.event
@@ -54,16 +71,14 @@ async def on_ready():
 async def ping(ctx):
     await ctx.send("Pong!")
 
-#Sets what faction the discord is using.
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setupfaction(ctx, faction: str):
     allowedFactions = ["Freedom", "Duty", "Bandit", "Ecologist", "Military", "Test"]
 
     if faction not in allowedFactions:
-        await ctx.send(
-            f"Invalid faction. Use one of: {', '.join(allowedFactions)}"
-        )
+        await ctx.send(f"Invalid faction. Use one of: {', '.join(allowedFactions)}")
         return
 
     guildId = ctx.guild.id
@@ -86,7 +101,7 @@ async def setupfaction(ctx, faction: str):
 
     await ctx.send(f"This server is now assigned to faction: **{faction}**")
 
-# Allows the user to check what faction is assigned to the discord.
+
 @bot.command()
 async def faction(ctx):
     factionName = getFactionForGuild(ctx.guild.id)
@@ -97,7 +112,44 @@ async def faction(ctx):
 
     await ctx.send(f"This server is assigned to: **{factionName}**")
 
-#Allows a factioner to give a quest to a player, and add notes.
+
+@bot.command()
+async def addloner(ctx, player_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    if playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** already exists in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO player_stats (
+            guild_id,
+            faction,
+            player_name,
+            reputation,
+            numQuestsCompleted
+        )
+        VALUES (%s, %s, %s, 0, 0)
+        """,
+        (guildId, factionName, player_name)
+    )
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(f"Player **{player_name}** has been added to **{factionName}**.")
+
+
 @bot.command()
 async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
     guildId = ctx.guild.id
@@ -105,6 +157,10 @@ async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
 
     if not factionName:
         await ctx.send("This server has not been assigned to a faction yet. Use `!setupfaction` first.")
+        return
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found. Use `!addloner \"{player_name}\"` first.")
         return
 
     db = getDbConnection()
@@ -139,7 +195,7 @@ async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
         f"ID: `{questId}`"
     )
 
-# Shows all quests given for a specific player by the faction.
+
 @bot.command()
 async def questshowplayer(ctx, player_name: str):
     guildId = ctx.guild.id
@@ -147,6 +203,10 @@ async def questshowplayer(ctx, player_name: str):
 
     if not factionName:
         await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
         return
 
     db = getDbConnection()
@@ -169,18 +229,19 @@ async def questshowplayer(ctx, player_name: str):
     db.close()
 
     if not quests:
-        await ctx.send(f"No quests found for **{player_name}**.")
+        await ctx.send(f"No active quests found for **{player_name}**.")
         return
 
     message = f"**Quests for {player_name} — {factionName}**\n\n"
 
     for quest in quests:
-        notes = quest["description"].split(" | ", 1)[1] if " | " in quest["description"] else quest["description"]
-        message += f"`{quest['id']}` — **{quest['title']}**\nNotes: {notes}\n\n"
+        description = quest["description"] or ""
+        notes = description.split(" | ", 1)[1] if " | " in description else description
+        message += f"`{quest['id']}` — **{quest['title']}**\nNotes: {notes if notes else 'None'}\n\n"
 
     await ctx.send(message)
 
-# Allows a factioner to see all the quests given out by the faction.
+
 @bot.command()
 async def questshowall(ctx):
     guildId = ctx.guild.id
@@ -209,23 +270,24 @@ async def questshowall(ctx):
     db.close()
 
     if not quests:
-        await ctx.send(f"No quests found for **{factionName}**.")
+        await ctx.send(f"No active quests found for **{factionName}**.")
         return
 
-    message = f"**All quests for {factionName}**\n\n"
+    message = f"**All active quests for {factionName}**\n\n"
 
     for quest in quests:
         description = quest["description"] or ""
+
         if " | " in description:
             playerName, notes = description.split(" | ", 1)
         else:
             playerName, notes = "Unknown", description
 
-        message += f"`{quest['id']}` — **{playerName}**: {quest['title']}\nNotes: {notes}\n\n"
+        message += f"`{quest['id']}` — **{playerName}**: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
 
     await ctx.send(message)
 
-# Allows a factioner to reward any player for completing a quest, and given them reputation for doing so.
+
 @bot.command()
 async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, reputation: int):
     guildId = ctx.guild.id
@@ -235,10 +297,13 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         await ctx.send("This server has not been assigned to a faction yet.")
         return
 
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
     db = getDbConnection()
     cursor = db.cursor(dictionary=True)
 
-    # Check that quest exists
     cursor.execute(
         """
         SELECT id, title, description
@@ -256,7 +321,12 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         await ctx.send("Quest not found.")
         return
 
-    # Remove quest from active quests
+    if not quest["description"].startswith(f"{player_name} |"):
+        cursor.close()
+        db.close()
+        await ctx.send(f"Quest ID `{quest_id}` does not belong to **{player_name}**.")
+        return
+
     cursor.execute(
         """
         DELETE FROM quests
@@ -265,22 +335,14 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         (quest_id, guildId, factionName)
     )
 
-    # Add/update player stats
     cursor.execute(
         """
-        INSERT INTO player_stats (
-            guild_id,
-            faction,
-            player_name,
-            reputation,
-            numQuestsCompleted
-        )
-        VALUES (%s, %s, %s, %s, 1)
-        ON DUPLICATE KEY UPDATE
-            reputation = reputation + VALUES(reputation),
+        UPDATE player_stats
+        SET reputation = reputation + %s,
             numQuestsCompleted = numQuestsCompleted + 1
+        WHERE guild_id = %s AND faction = %s AND player_name = %s
         """,
-        (guildId, factionName, player_name, reputation)
+        (reputation, guildId, factionName, player_name)
     )
 
     db.commit()
@@ -292,11 +354,10 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         f"Player: **{player_name}**\n"
         f"Quest: **{quest['title']}**\n"
         f"Reward: **{reward}**\n"
-        f"Reputation Gained: **{reputation}**\n"
-        f"Total completed quests increased by 1."
+        f"Reputation Gained: **{reputation}**"
     )
 
-# Allows a factioner to check how many quests a player has completed.
+
 @bot.command()
 async def questnumbercompleted(ctx, player_name: str):
     guildId = ctx.guild.id
@@ -324,7 +385,7 @@ async def questnumbercompleted(ctx, player_name: str):
     db.close()
 
     if not stats:
-        await ctx.send(f"No completed quest data found for **{player_name}**.")
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
         return
 
     await ctx.send(
@@ -333,39 +394,57 @@ async def questnumbercompleted(ctx, player_name: str):
         f"Reputation: **{stats['reputation']}**"
     )
 
-# Help command
+
 @bot.command()
 async def help(ctx):
     message = """
 **📜 Bot Commands**
 
 **Faction Setup**
-!setupfaction [Faction] — Assign this server to a faction (Admin only)
-!faction — Show this server's faction
+!setupfaction [Faction] — Assign this server to a faction. Admin only.
+!faction — Show this server's assigned faction.
+
+**Players**
+!addloner "Player Name" — Add a player to this faction's database.
 
 **Quests**
-!questgive "Player Name" "Quest Title" [notes]  
-→ Assign a quest to a player
+!questgive "Player Name" "Quest Title" [notes]
+→ Assign a quest to an existing player.
 
 Example:
 !questgive "Stalker Ivan" "Artifact Hunt" Retrieve a Night Star from Agroprom
 
-!quests — Show recent quests  
-!questshowplayer "Player Name" — Show all quests for a specific player  
-!questshowall — Show all quests for this faction  
+!questshowplayer "Player Name" — Show active quests for one player.
+!questshowall — Show all active quests for this faction.
 
 **Quest Completion**
-!questgivereward "Player Name" [quest_id] "Reward" [reputation]  
-→ Complete a quest, remove it, give reward, and add reputation  
+!questgivereward "Player Name" [quest_id] "Reward" [reputation]
+→ Complete a quest, remove it from active quests, add reputation, and increase completed quests by 1.
 
 Example:
 !questgivereward "Stalker Ivan" 4 "3000 RU and medkit" 10
 
-!questnumbercompleted "Player Name"  
-→ Show completed quest count and total reputation  
+!questnumbercompleted "Player Name" — Show completed quest count and total reputation.
 
 **Utility**
-!ping — Check if bot is alive  
-!hello — Say hello  
+!ping — Check if bot is alive.
 """
     await ctx.send(message)
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Missing input. Use `!help` to see the correct command format.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Invalid input type. Check your numbers and use quotes around multi-word names or quests.")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("You do not have permission to use this command.")
+    elif isinstance(error, commands.CommandNotFound):
+        return
+    else:
+        await ctx.send("An unexpected error occurred.")
+        raise error
+
+
+bot.run(token)
