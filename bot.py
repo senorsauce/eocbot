@@ -400,6 +400,8 @@ async def help(ctx):
     message = """
 **📜 Bot Commands**
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 **Faction Setup**
 !setupfaction [Faction] 
  → Assign this server to a faction. Admin only.
@@ -412,6 +414,8 @@ async def help(ctx):
 
 !lonerstats "Loner Name" 
  → Show completed quest count and reputation total.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Quests**
  !!! Make sure to add the loner's name to the database before attempting to assign/retrieve quests
@@ -426,9 +430,10 @@ async def help(ctx):
 !questshowall 
  → Show all active quests for your faction.
 
-**Quest Completion**
 !questgivereward "Loner Name" [quest_id] "Reward" [reputation]
  → Complete a quest once a loner has turned it in. Don't forget to actually reward the loner in-game!
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Utility**
 !ping 
