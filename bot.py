@@ -163,7 +163,7 @@ async def lonereditstatus(ctx, player_name: str, status: str):
         "Untrustworthy",
         "Neutral",
         "Known",
-        "Trusted",
+        "Trustworthy",
         "Respected"
     ]
 
