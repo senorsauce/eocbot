@@ -418,7 +418,7 @@ async def help(ctx):
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Quests**
- !!! Make sure to add the loner's name to the database before attempting to assign/retrieve quests
+  IMPORTANT: Make sure to add the loner's name to the database before attempting to assign/retrieve quests
 
 !questgive "Player Name" "Quest Title" [notes]
  → Assign a quest to an existing loner.
