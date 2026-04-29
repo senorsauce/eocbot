@@ -414,7 +414,7 @@ async def help(ctx):
  → Show completed quest count and reputation total.
 
 **Quests**
- ** Make sure to add the loner's name to the database before attempting to assign/retrieve quests
+ !!! Make sure to add the loner's name to the database before attempting to assign/retrieve quests
 
 !questgive "Player Name" "Quest Title" [notes]
  → Assign a quest to an existing loner.
@@ -428,10 +428,11 @@ async def help(ctx):
 
 **Quest Completion**
 !questgivereward "Loner Name" [quest_id] "Reward" [reputation]
-→ Complete a quest, remove it from active quests, and add reputation to the loner who completed it.
+ → Complete a quest once a loner has turned it in. Don't forget to actually reward the loner in-game!
 
 **Utility**
-!ping — Check if bot is alive.
+!ping 
+ → Check if bot is alive.
 """
     await ctx.send(message)
 
