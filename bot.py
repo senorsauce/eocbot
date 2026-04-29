@@ -422,7 +422,6 @@ async def help(ctx):
 
 !questgive "Player Name" "Quest Title" [notes]
  → Assign a quest to an existing loner.
- ** Make sure to add the loner's name to the database before attempting to assign/retrieve quests
 
 !questshowplayer "Player Name"
  → Show active quests for a chosen loner.
