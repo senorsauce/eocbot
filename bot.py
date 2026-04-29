@@ -2,8 +2,13 @@ import os
 import discord
 from discord.ext import commands
 
+# Retrieve token
 token = os.getenv("DISCORD_TOKEN")
 
+if not token:
+    raise ValueError("DISCORD_TOKEN is wrong.")
+
+# 
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -25,7 +30,5 @@ async def hello(ctx):
     await ctx.send(f"Hello, {ctx.author.mention}!")
 
 
-if token is None:
-    raise ValueError("DISCORD_TOKEN environment variable is missing.")
-
+# Start up
 bot.run(token)
