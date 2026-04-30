@@ -417,6 +417,106 @@ async def lonergroupmemberremove(ctx, group_name: str, player_name: str):
     await ctx.send(f"Removed **{player_name}** from loner group **{group_name}**.")
 
 @bot.command()
+async def lonergroupeditstatus(ctx, group_name: str, status: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    allowedStatuses = [
+        "Hostile",
+        "Untrustworthy",
+        "Neutral",
+        "Known",
+        "Trustworthy",
+        "Respected"
+    ]
+
+    if status not in allowedStatuses:
+        await ctx.send(f"Invalid status. Use one of: {', '.join(allowedStatuses)}")
+        return
+
+    if not lonerGroupExists(guildId, factionName, group_name):
+        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE loner_groups
+        SET status = %s
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        """,
+        (status, guildId, factionName, group_name)
+    )
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(f"Loner group **{group_name}** status changed to **{status}**.")
+
+@bot.command()
+async def lonergroupstatus(ctx, group_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT status
+        FROM loner_groups
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        """,
+        (guildId, factionName, group_name)
+    )
+
+    group = cursor.fetchone()
+
+    if not group:
+        cursor.close()
+        db.close()
+        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        return
+
+    cursor.execute(
+        """
+        SELECT player_name
+        FROM loner_group_members
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        ORDER BY player_name ASC
+        """,
+        (guildId, factionName, group_name)
+    )
+
+    members = cursor.fetchall()
+
+    cursor.close()
+    db.close()
+
+    memberList = "\n".join([f"- {member['player_name']}" for member in members])
+
+    if not memberList:
+        memberList = "No members."
+
+    await ctx.send(
+        f"**Loner Group: {group_name}**\n"
+        f"Faction: **{factionName}**\n"
+        f"Status: **{group['status'] or 'Neutral'}**\n\n"
+        f"**Members:**\n{memberList}"
+    )
+
+@bot.command()
 async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
@@ -507,6 +607,147 @@ async def questshowplayer(ctx, player_name: str):
 
     await ctx.send(message)
 
+@bot.command()
+async def questgivelonergroup(ctx, group_name: str, quest: str, *, notes: str = ""):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    if not lonerGroupExists(guildId, factionName, group_name):
+        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT player_name
+        FROM loner_group_members
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        """,
+        (guildId, factionName, group_name)
+    )
+
+    members = cursor.fetchall()
+
+    if not members:
+        cursor.close()
+        db.close()
+        await ctx.send(f"Loner group **{group_name}** has no members.")
+        return
+
+    questIds = []
+
+    for member in members:
+        playerName = member["player_name"]
+
+        cursor.execute(
+            """
+            INSERT INTO quests (guild_id, faction, title, description, created_by)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (
+                guildId,
+                factionName,
+                quest,
+                f"{playerName} | Group: {group_name}. {notes}",
+                ctx.author.id
+            )
+        )
+
+        questIds.append(str(cursor.lastrowid))
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(
+        f"**Group Quest Assigned**\n"
+        f"Group: **{group_name}**\n"
+        f"Faction: **{factionName}**\n"
+        f"Quest: **{quest}**\n"
+        f"Members Assigned: **{len(members)}**\n"
+        f"Quest IDs: `{', '.join(questIds)}`"
+    )
+
+@bot.command()
+async def questgiverewardlonergroup(ctx, group_name: str, quest: str, reward: str, reputation: int):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    if not lonerGroupExists(guildId, factionName, group_name):
+        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT player_name
+        FROM loner_group_members
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        """,
+        (guildId, factionName, group_name)
+    )
+
+    members = cursor.fetchall()
+
+    if not members:
+        cursor.close()
+        db.close()
+        await ctx.send(f"Loner group **{group_name}** has no members.")
+        return
+
+    completedCount = 0
+
+    for member in members:
+        playerName = member["player_name"]
+
+        cursor.execute(
+            """
+            DELETE FROM quests
+            WHERE guild_id = %s
+            AND faction = %s
+            AND title = %s
+            AND description LIKE %s
+            """,
+            (guildId, factionName, quest, f"{playerName} | Group: {group_name}.%")
+        )
+
+        if cursor.rowcount > 0:
+            completedCount += cursor.rowcount
+
+            cursor.execute(
+                """
+                UPDATE player_stats
+                SET reputation = reputation + %s,
+                    numQuestsCompleted = numQuestsCompleted + 1
+                WHERE guild_id = %s AND faction = %s AND player_name = %s
+                """,
+                (reputation, guildId, factionName, playerName)
+            )
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(
+        f"**Group Quest Reward Given**\n"
+        f"Group: **{group_name}**\n"
+        f"Quest: **{quest}**\n"
+        f"Reward: **{reward}**\n"
+        f"Reputation Gained Per Loner: **{reputation}**\n"
+        f"Completed Quest Records Removed: **{completedCount}**"
+    )
 
 @bot.command()
 async def questshowall(ctx):
@@ -544,12 +785,38 @@ async def questshowall(ctx):
     for quest in quests:
         description = quest["description"] or ""
 
-        if " | " in description:
-            playerName, notes = description.split(" | ", 1)
-        else:
-            playerName, notes = "Unknown", description
+        if " | Group: " in description:
+            playerName, groupInfo = description.split(" | Group: ", 1)
 
-        message += f"`Quest ID: {quest['id']}` — **'{playerName}'** tasked with: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
+            if ". " in groupInfo:
+                groupName, notes = groupInfo.split(". ", 1)
+            else:
+                groupName, notes = groupInfo, ""
+
+            message += (
+                f"`Quest ID: {quest['id']}` — **[GROUP QUEST]**\n"
+                f"Group: **{groupName}**\n"
+                f"Loner: **{playerName}**\n"
+                f"Task: **{quest['title']}**\n"
+                f"Notes: {notes if notes else 'None'}\n\n"
+            )
+
+        elif " | " in description:
+            playerName, notes = description.split(" | ", 1)
+
+            message += (
+                f"`Quest ID: {quest['id']}` — **[LONER QUEST]**\n"
+                f"Loner: **{playerName}**\n"
+                f"Task: **{quest['title']}**\n"
+                f"Notes: {notes if notes else 'None'}\n\n"
+            )
+
+        else:
+            message += (
+                f"`Quest ID: {quest['id']}` — **[UNKNOWN QUEST]**\n"
+                f"Task: **{quest['title']}**\n"
+                f"Notes: {description if description else 'None'}\n\n"
+            )
 
     await ctx.send(message)
 
@@ -644,7 +911,7 @@ async def help(ctx):
 !lonerremove "Loner Name" 
  → Remove a loner from your faction database.
 
-!lonerstatus "Loner Name" 
+!lonerstats "Loner Name" 
  → Show status, completed quests, and reputation.
 
 !lonereditstatus "Loner Name" [Status]
@@ -662,6 +929,13 @@ async def help(ctx):
 
 !lonergroupmemberremove "Group Name" "Loner Name"
  → Remove a loner from a group.
+
+!lonergroupstatus "Group Name"
+ → Show a loner group's status and members.
+
+!lonergroupeditstatus "Group Name" [Status]
+ → Change a loner group's status to:
+     - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -682,6 +956,15 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+**Group Quests**
+!questgivelonergroup "Group Name" "Quest Title" [notes]
+ → Assign a quest to every loner in a group.
+
+!questgiverewardlonergroup "Group Name" "Quest Title" "Reward" [reputation]
+ → Complete a group quest and reward every group member.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 **Utility**
 !ping 
  → Check if bot is alive.
@@ -689,7 +972,6 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
     await ctx.send(message)
-
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
