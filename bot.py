@@ -150,6 +150,51 @@ async def loneradd(ctx, player_name: str):
     await ctx.send(f"Player **{player_name}** has been added to **{factionName}**.")
 
 @bot.command()
+@commands.has_permissions(manage_roles=True)
+async def lonerremove(ctx, player_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    player_name = player_name.strip()
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    # Remove from player_stats
+    cursor.execute(
+        """
+        DELETE FROM player_stats
+        WHERE guild_id = %s AND faction = %s AND player_name = %s
+        """,
+        (guildId, factionName, player_name)
+    )
+
+    # OPTIONAL: remove their active quests too
+    cursor.execute(
+        """
+        DELETE FROM quests
+        WHERE guild_id = %s AND faction = %s AND description LIKE %s
+        """,
+        (guildId, factionName, f"{player_name} |%")
+    )
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+    await ctx.send(
+        f"**{player_name}** has been removed from **{factionName}**, including their active quests."
+    )
+
+@bot.command()
 async def lonereditstatus(ctx, player_name: str, status: str):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
