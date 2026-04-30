@@ -136,9 +136,10 @@ async def loneradd(ctx, player_name: str):
             faction,
             player_name,
             reputation,
-            numQuestsCompleted
+            numQuestsCompleted,
+            status
         )
-        VALUES (%s, %s, %s, 0, 0)
+        VALUES (%s, %s, %s, 0, 0, 'Neutral')
         """,
         (guildId, factionName, player_name)
     )
@@ -243,7 +244,7 @@ async def lonereditstatus(ctx, player_name: str, status: str):
     )
 
 @bot.command()
-async def lonerstats(ctx, player_name: str):
+async def lonerstatus(ctx, player_name: str):
     guildId = ctx.guild.id
     factionName = getFactionForGuild(guildId)
 
@@ -281,7 +282,7 @@ async def lonerstats(ctx, player_name: str):
         status = "Neutral"
 
     await ctx.send(
-        f"**'{player_name}'**"
+        f"**'{player_name}'**\n"
         f"Status: **{status}**\n"
         f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
         f"Reputation: **{stats['reputation']}**"
@@ -425,7 +426,7 @@ async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
         return
 
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found. Use `!addloner \"{player_name}\"` first.")
+        await ctx.send(f"Player **{player_name}** not found. Use `!loneradd \"{player_name}\"` first.")
         return
 
     db = getDbConnection()
@@ -643,7 +644,7 @@ async def help(ctx):
 !lonerremove "Loner Name" 
  → Remove a loner from your faction database.
 
-!lonerstats "Loner Name" 
+!lonerstatus "Loner Name" 
  → Show status, completed quests, and reputation.
 
 !lonereditstatus "Loner Name" [Status]
@@ -688,5 +689,19 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
     await ctx.send(message)
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Missing input. Use `!help` to see the correct command format.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Invalid input type. Check numbers and use quotes around multi-word names, groups, quests, or rewards.")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("You do not have permission to use this command.")
+    elif isinstance(error, commands.CommandNotFound):
+        return
+    else:
+        await ctx.send("An unexpected error occurred.")
+        raise error
 
 bot.run(token)
