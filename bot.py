@@ -2,6 +2,7 @@ import os
 import discord
 import mysql.connector
 from discord.ext import commands
+from discord import app_commands
 
 token = os.getenv("DISCORD_TOKEN")
 
@@ -85,24 +86,30 @@ def lonerGroupExists(guildId, factionName, groupName):
 
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     print(f"Logged in as {bot.user}")
+    print("Slash commands synced.")
 
 
-@bot.command()
-async def ping(ctx):
-    await ctx.send("Pong!")
+@bot.tree.command(name="ping", description="Check if the bot is alive")
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("Pong!", ephemeral=True)
 
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def setupfaction(ctx, faction: str):
+@bot.tree.command(name="setupfaction", description="Assign this server to a faction")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(faction="Faction name")
+async def setupfaction(interaction: discord.Interaction, faction: str):
     allowedFactions = ["Freedom", "Duty", "Bandit", "Ecologist", "Military", "Granit"]
 
     if faction not in allowedFactions:
-        await ctx.send(f"Invalid faction. Use one of: {', '.join(allowedFactions)}")
+        await interaction.response.send_message(
+            f"Invalid faction. Use one of: {', '.join(allowedFactions)}",
+            ephemeral=True
+        )
         return
 
-    guildId = ctx.guild.id
+    guildId = interaction.guild.id
 
     db = getDbConnection()
     cursor = db.cursor()
@@ -120,7 +127,10 @@ async def setupfaction(ctx, faction: str):
     cursor.close()
     db.close()
 
-    await ctx.send(f"This server is now assigned to faction: **{faction}**")
+    await interaction.response.send_message(
+        f"This server is now assigned to faction: **{faction}**",
+        ephemeral=True
+    )
 
 
 @bot.command()
@@ -134,17 +144,26 @@ async def faction(ctx):
     await ctx.send(f"This server is assigned to: **{factionName}**")
 
 
-@bot.command()
-async def loneradd(ctx, player_name: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="loneradd", description="Add a loner to your faction database")
+@app_commands.describe(player_name="Name of the loner")
+async def loneradd(interaction: discord.Interaction, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
+    player_name = player_name.strip()
+
     if playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** already exists in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** already exists in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -169,28 +188,37 @@ async def loneradd(ctx, player_name: str):
     cursor.close()
     db.close()
 
-    await ctx.send(f"Player **{player_name}** has been added to **{factionName}**.")
+    await interaction.response.send_message(
+        f"Player **{player_name}** has been added to **{factionName}**.",
+        ephemeral=True
+    )
 
-@bot.command()
-@commands.has_permissions(manage_roles=True)
-async def lonerremove(ctx, player_name: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="lonerremove", description="Remove a loner from your faction database")
+@app_commands.checks.has_permissions(manage_roles=True)
+@app_commands.describe(player_name="Name of the loner")
+async def lonerremove(interaction: discord.Interaction, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     player_name = player_name.strip()
 
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
     cursor = db.cursor()
 
-    # Remove from player_stats
     cursor.execute(
         """
         DELETE FROM player_stats
@@ -199,7 +227,6 @@ async def lonerremove(ctx, player_name: str):
         (guildId, factionName, player_name)
     )
 
-    # OPTIONAL: remove their active quests too
     cursor.execute(
         """
         DELETE FROM quests
@@ -212,17 +239,25 @@ async def lonerremove(ctx, player_name: str):
     cursor.close()
     db.close()
 
-    await ctx.send(
-        f"**{player_name}** has been removed from **{factionName}**, including their active quests."
+    await interaction.response.send_message(
+        f"**{player_name}** has been removed from **{factionName}**, including their active quests.",
+        ephemeral=True
     )
 
-@bot.command()
-async def lonereditstatus(ctx, player_name: str, status: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="lonereditstatus", description="Change a loner's faction status")
+@app_commands.describe(
+    player_name="Name of the loner",
+    status="New status: Hostile, Untrustworthy, Neutral, Known, Trustworthy, or Respected"
+)
+async def lonereditstatus(interaction: discord.Interaction, player_name: str, status: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     allowedStatuses = [
@@ -235,13 +270,19 @@ async def lonereditstatus(ctx, player_name: str, status: str):
     ]
 
     if status not in allowedStatuses:
-        await ctx.send(
-            f"Invalid status. Use one of: {', '.join(allowedStatuses)}"
+        await interaction.response.send_message(
+            f"Invalid status. Use one of: {', '.join(allowedStatuses)}",
+            ephemeral=True
         )
         return
 
+    player_name = player_name.strip()
+
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -260,24 +301,32 @@ async def lonereditstatus(ctx, player_name: str, status: str):
     cursor.close()
     db.close()
 
-    await ctx.send(
-        f"**{player_name}** status changed to **{status}** for **{factionName}**."
+    await interaction.response.send_message(
+        f"**{player_name}** status changed to **{status}** for **{factionName}**.",
+        ephemeral=True
     )
 
-@bot.command()
-async def lonerstatus(ctx, player_name: str):
-    guildId = ctx.guild.id
+
+@bot.tree.command(name="lonerstatus", description="Show a loner's status, completed quests, and reputation")
+@app_commands.describe(player_name="Name of the loner")
+async def lonerstatus(interaction: discord.Interaction, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
-    # Optional normalization (recommended)
     player_name = player_name.strip()
 
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -297,25 +346,30 @@ async def lonerstatus(ctx, player_name: str):
     cursor.close()
     db.close()
 
-    # Safety fallback
     status = stats.get("status") if stats else None
     if not status:
         status = "Neutral"
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**'{player_name}'**\n"
         f"Status: **{status}**\n"
         f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
-        f"Reputation: **{stats['reputation']}**"
+        f"Reputation: **{stats['reputation']}**",
+        ephemeral=True
     )
 
-@bot.command()
-async def lonergroupcreate(ctx, group_name: str):
-    guildId = ctx.guild.id
+
+@bot.tree.command(name="lonergroupcreate", description="Create a loner group for your faction")
+@app_commands.describe(group_name="Name of the loner group")
+async def lonergroupcreate(interaction: discord.Interaction, group_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     group_name = group_name.strip()
@@ -333,30 +387,46 @@ async def lonergroupcreate(ctx, group_name: str):
         )
 
         db.commit()
-        await ctx.send(f"Loner group **{group_name}** created for **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** created for **{factionName}**.",
+            ephemeral=True
+        )
 
     except mysql.connector.IntegrityError:
-        await ctx.send(f"Loner group **{group_name}** already exists for **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** already exists for **{factionName}**.",
+            ephemeral=True
+        )
 
     finally:
         cursor.close()
         db.close()
 
 
-@bot.command()
-async def lonergroupmemberadd(ctx, group_name: str, player_name: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="lonergroupmemberadd", description="Add a loner to a loner group")
+@app_commands.describe(
+    group_name="Name of the loner group",
+    player_name="Name of the loner"
+)
+async def lonergroupmemberadd(interaction: discord.Interaction, group_name: str, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     group_name = group_name.strip()
     player_name = player_name.strip()
 
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -376,7 +446,10 @@ async def lonergroupmemberadd(ctx, group_name: str, player_name: str):
     if not group:
         cursor.close()
         db.close()
-        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     try:
@@ -389,23 +462,36 @@ async def lonergroupmemberadd(ctx, group_name: str, player_name: str):
         )
 
         db.commit()
-        await ctx.send(f"Added **{player_name}** to loner group **{group_name}**.")
+        await interaction.response.send_message(
+            f"Added **{player_name}** to loner group **{group_name}**.",
+            ephemeral=True
+        )
 
     except mysql.connector.IntegrityError:
-        await ctx.send(f"**{player_name}** is already in **{group_name}**.")
+        await interaction.response.send_message(
+            f"**{player_name}** is already in **{group_name}**.",
+            ephemeral=True
+        )
 
     finally:
         cursor.close()
         db.close()
 
 
-@bot.command()
-async def lonergroupmemberremove(ctx, group_name: str, player_name: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="lonergroupmemberremove", description="Remove a loner from a loner group")
+@app_commands.describe(
+    group_name="Name of the loner group",
+    player_name="Name of the loner"
+)
+async def lonergroupmemberremove(interaction: discord.Interaction, group_name: str, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     group_name = group_name.strip()
@@ -432,18 +518,31 @@ async def lonergroupmemberremove(ctx, group_name: str, player_name: str):
     db.close()
 
     if removedCount == 0:
-        await ctx.send(f"**{player_name}** was not found in **{group_name}**.")
+        await interaction.response.send_message(
+            f"**{player_name}** was not found in **{group_name}**.",
+            ephemeral=True
+        )
         return
 
-    await ctx.send(f"Removed **{player_name}** from loner group **{group_name}**.")
+    await interaction.response.send_message(
+        f"Removed **{player_name}** from loner group **{group_name}**.",
+        ephemeral=True
+    )
 
-@bot.command()
-async def lonergroupeditstatus(ctx, group_name: str, status: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="lonergroupeditstatus", description="Change a loner group's faction status")
+@app_commands.describe(
+    group_name="Name of the loner group",
+    status="New status: Hostile, Untrustworthy, Neutral, Known, Trustworthy, or Respected"
+)
+async def lonergroupeditstatus(interaction: discord.Interaction, group_name: str, status: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     allowedStatuses = [
@@ -456,11 +555,19 @@ async def lonergroupeditstatus(ctx, group_name: str, status: str):
     ]
 
     if status not in allowedStatuses:
-        await ctx.send(f"Invalid status. Use one of: {', '.join(allowedStatuses)}")
+        await interaction.response.send_message(
+            f"Invalid status. Use one of: {', '.join(allowedStatuses)}",
+            ephemeral=True
+        )
         return
 
+    group_name = group_name.strip()
+
     if not lonerGroupExists(guildId, factionName, group_name):
-        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -479,16 +586,26 @@ async def lonergroupeditstatus(ctx, group_name: str, status: str):
     cursor.close()
     db.close()
 
-    await ctx.send(f"Loner group **{group_name}** status changed to **{status}**.")
+    await interaction.response.send_message(
+        f"Loner group **{group_name}** status changed to **{status}**.",
+        ephemeral=True
+    )
 
-@bot.command()
-async def lonergroupstatus(ctx, group_name: str):
-    guildId = ctx.guild.id
+
+@bot.tree.command(name="lonergroupstatus", description="Show a loner group's status and members")
+@app_commands.describe(group_name="Name of the loner group")
+async def lonergroupstatus(interaction: discord.Interaction, group_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
+
+    group_name = group_name.strip()
 
     db = getDbConnection()
     cursor = db.cursor(dictionary=True)
@@ -507,7 +624,10 @@ async def lonergroupstatus(ctx, group_name: str):
     if not group:
         cursor.close()
         db.close()
-        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     cursor.execute(
@@ -530,24 +650,39 @@ async def lonergroupstatus(ctx, group_name: str):
     if not memberList:
         memberList = "No members."
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**Loner Group: {group_name}**\n"
         f"Faction: **{factionName}**\n"
         f"Status: **{group['status'] or 'Neutral'}**\n\n"
-        f"**Members:**\n{memberList}"
+        f"**Members:**\n{memberList}",
+        ephemeral=True
     )
+    
 
-@bot.command()
-async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
-    guildId = ctx.guild.id
+@bot.tree.command(name="questgive", description="Assign a quest to an existing loner")
+@app_commands.describe(
+    player_name="Name of the loner",
+    quest="Quest title",
+    notes="Optional quest notes"
+)
+async def questgive(interaction: discord.Interaction, player_name: str, quest: str, notes: str = ""):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet. Use `!setupfaction` first.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet. Use `/setupfaction` first.",
+            ephemeral=True
+        )
         return
 
+    player_name = player_name.strip()
+
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found. Use `!loneradd \"{player_name}\"` first.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found. Use `/loneradd` first.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -563,7 +698,7 @@ async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
             factionName,
             quest,
             f"{player_name} | {notes}",
-            ctx.author.id
+            interaction.user.id
         )
     )
 
@@ -573,27 +708,37 @@ async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
     cursor.close()
     db.close()
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**Quest Assigned**\n"
         f"Faction: **{factionName}**\n"
-        f"Player: **{player_name}**\n"
+        f"Loner: **{player_name}**\n"
         f"Quest: **{quest}**\n"
         f"Notes: {notes if notes else 'None'}\n"
-        f"ID: `{questId}`"
+        f"ID: `{questId}`",
+        ephemeral=True
     )
 
 
-@bot.command()
-async def questshowplayer(ctx, player_name: str):
-    guildId = ctx.guild.id
+@bot.tree.command(name="questshowplayer", description="Show active quests for a chosen loner")
+@app_commands.describe(player_name="Name of the loner")
+async def questshowplayer(interaction: discord.Interaction, player_name: str):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
+    player_name = player_name.strip()
+
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -616,7 +761,10 @@ async def questshowplayer(ctx, player_name: str):
     db.close()
 
     if not quests:
-        await ctx.send(f"No active quests found for **{player_name}**.")
+        await interaction.response.send_message(
+            f"No active quests found for **{player_name}**.",
+            ephemeral=True
+        )
         return
 
     message = f"**Quests for {player_name} — {factionName}**\n\n"
@@ -626,19 +774,38 @@ async def questshowplayer(ctx, player_name: str):
         notes = description.split(" | ", 1)[1] if " | " in description else description
         message += f"`{quest['id']}` — **{quest['title']}**\nNotes: {notes if notes else 'None'}\n\n"
 
-    await ctx.send(message)
+    await interaction.response.send_message(message, ephemeral=True)
+    
 
-@bot.command()
-async def questgivelonergroup(ctx, group_name: str, quest: str, *, notes: str = ""):
-    guildId = ctx.guild.id
+@bot.tree.command(name="questgivelonergroup", description="Assign a quest to every loner in a group")
+@app_commands.describe(
+    group_name="Name of the loner group",
+    quest="Quest title",
+    notes="Optional quest notes"
+)
+async def questgivelonergroup(
+    interaction: discord.Interaction,
+    group_name: str,
+    quest: str,
+    notes: str = ""
+):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
+    group_name = group_name.strip()
+
     if not lonerGroupExists(guildId, factionName, group_name):
-        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -658,7 +825,10 @@ async def questgivelonergroup(ctx, group_name: str, quest: str, *, notes: str = 
     if not members:
         cursor.close()
         db.close()
-        await ctx.send(f"Loner group **{group_name}** has no members.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** has no members.",
+            ephemeral=True
+        )
         return
 
     questIds = []
@@ -676,7 +846,7 @@ async def questgivelonergroup(ctx, group_name: str, quest: str, *, notes: str = 
                 factionName,
                 quest,
                 f"{playerName} | Group: {group_name}. {notes}",
-                ctx.author.id
+                interaction.user.id
             )
         )
 
@@ -686,26 +856,47 @@ async def questgivelonergroup(ctx, group_name: str, quest: str, *, notes: str = 
     cursor.close()
     db.close()
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**Group Quest Assigned**\n"
         f"Group: **{group_name}**\n"
         f"Faction: **{factionName}**\n"
         f"Quest: **{quest}**\n"
         f"Members Assigned: **{len(members)}**\n"
-        f"Quest IDs: `{', '.join(questIds)}`"
+        f"Quest IDs: `{', '.join(questIds)}`",
+        ephemeral=True
     )
-
-@bot.command()
-async def questgiverewardlonergroup(ctx, group_name: str, quest: str, reward: str, reputation: int):
-    guildId = ctx.guild.id
+    
+@bot.tree.command(name="questgiverewardlonergroup", description="Complete a group quest and reward every group member")
+@app_commands.describe(
+    group_name="Name of the loner group",
+    quest="Quest title",
+    reward="Reward given to the group",
+    reputation="Reputation gained by each loner"
+)
+async def questgiverewardlonergroup(
+    interaction: discord.Interaction,
+    group_name: str,
+    quest: str,
+    reward: str,
+    reputation: int
+):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
+    group_name = group_name.strip()
+
     if not lonerGroupExists(guildId, factionName, group_name):
-        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -725,7 +916,10 @@ async def questgiverewardlonergroup(ctx, group_name: str, quest: str, reward: st
     if not members:
         cursor.close()
         db.close()
-        await ctx.send(f"Loner group **{group_name}** has no members.")
+        await interaction.response.send_message(
+            f"Loner group **{group_name}** has no members.",
+            ephemeral=True
+        )
         return
 
     completedCount = 0
@@ -761,22 +955,27 @@ async def questgiverewardlonergroup(ctx, group_name: str, quest: str, reward: st
     cursor.close()
     db.close()
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**Group Quest Reward Given**\n"
         f"Group: **{group_name}**\n"
         f"Quest: **{quest}**\n"
         f"Reward: **{reward}**\n"
         f"Reputation Gained Per Loner: **{reputation}**\n"
-        f"Completed Quest Records Removed: **{completedCount}**"
+        f"Completed Quest Records Removed: **{completedCount}**",
+        ephemeral=True
     )
 
-@bot.command()
-async def questshowall(ctx):
-    guildId = ctx.guild.id
+
+@bot.tree.command(name="questshowall", description="Show all active quests for your faction")
+async def questshowall(interaction: discord.Interaction):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -798,7 +997,10 @@ async def questshowall(ctx):
     db.close()
 
     if not quests:
-        await ctx.send(f"No active quests found for **{factionName}**.")
+        await interaction.response.send_message(
+            f"No active quests found for **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     message = f"**All active quests for {factionName}**\n\n"
@@ -839,20 +1041,43 @@ async def questshowall(ctx):
                 f"Notes: {description if description else 'None'}\n\n"
             )
 
-    await ctx.send(message)
+    if len(message) > 1900:
+        message = message[:1900] + "\n\nMessage cut off because there are too many quests."
+
+    await interaction.response.send_message(message, ephemeral=True)
 
 
-@bot.command()
-async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, reputation: int):
-    guildId = ctx.guild.id
+@bot.tree.command(name="questgivereward", description="Complete a quest and reward a loner")
+@app_commands.describe(
+    player_name="Name of the loner",
+    quest_id="Quest ID being completed",
+    reward="Reward given to the loner",
+    reputation="Reputation gained by the loner"
+)
+async def questgivereward(
+    interaction: discord.Interaction,
+    player_name: str,
+    quest_id: int,
+    reward: str,
+    reputation: int
+):
+    guildId = interaction.guild.id
     factionName = getFactionForGuild(guildId)
 
     if not factionName:
-        await ctx.send("This server has not been assigned to a faction yet.")
+        await interaction.response.send_message(
+            "This server has not been assigned to a faction yet.",
+            ephemeral=True
+        )
         return
 
+    player_name = player_name.strip()
+
     if not playerExists(guildId, factionName, player_name):
-        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        await interaction.response.send_message(
+            f"Player **{player_name}** not found in **{factionName}**.",
+            ephemeral=True
+        )
         return
 
     db = getDbConnection()
@@ -872,13 +1097,19 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
     if not quest:
         cursor.close()
         db.close()
-        await ctx.send("Quest not found.")
+        await interaction.response.send_message(
+            "Quest not found.",
+            ephemeral=True
+        )
         return
 
     if not quest["description"].startswith(f"{player_name} |"):
         cursor.close()
         db.close()
-        await ctx.send(f"Quest ID `{quest_id}` does not belong to **{player_name}**.")
+        await interaction.response.send_message(
+            f"Quest ID `{quest_id}` does not belong to **{player_name}**.",
+            ephemeral=True
+        )
         return
 
     cursor.execute(
@@ -903,26 +1134,27 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
     cursor.close()
     db.close()
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"**Quest Completed**\n"
         f"Player: **{player_name}**\n"
         f"Quest: **{quest['title']}**\n"
         f"Reward: **{reward}**\n"
-        f"Reputation Gained: **{reputation}**"
+        f"Reputation Gained: **{reputation}**",
+        ephemeral=True
     )
 
-@bot.command()
-async def help(ctx):
+@bot.tree.command(name="help", description="Show bot commands")
+async def help(interaction: discord.Interaction):
     factionSetup = """
 **📜 Bot Commands**
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Faction Setup**
-!setupfaction [Faction] 
+/setupfaction [Faction] 
  → Assign this server to a faction. Admin only.
 
-!faction 
+/faction 
  → Show this server's assigned faction.
 """
 
@@ -930,16 +1162,16 @@ async def help(ctx):
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Players**
-!loneradd "Loner Name" 
+/loneradd "Loner Name" 
  → Add a loner to your faction database.
 
-!lonerremove "Loner Name" 
+/lonerremove "Loner Name" 
  → Remove a loner from your faction database.
 
-!lonerstatus "Loner Name" 
+/lonerstatus "Loner Name" 
  → Show status, completed quests, and reputation.
 
-!lonereditstatus "Loner Name" [Status]
+/lonereditstatus "Loner Name" [Status]
  → Change a loner's status to:
      - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
 """
@@ -948,19 +1180,19 @@ async def help(ctx):
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Loner Groups**
-!lonergroupcreate "Group Name"
+/lonergroupcreate "Group Name"
  → Create a loner group for your faction.
 
-!lonergroupmemberadd "Group Name" "Loner Name"
+/lonergroupmemberadd "Group Name" "Loner Name"
  → Add a loner to a group.
 
-!lonergroupmemberremove "Group Name" "Loner Name"
+/lonergroupmemberremove "Group Name" "Loner Name"
  → Remove a loner from a group.
 
-!lonergroupstatus "Group Name"
+/lonergroupstatus "Group Name"
  → Show a loner group's status and members.
 
-!lonergroupeditstatus "Group Name" [Status]
+/lonergroupeditstatus "Group Name" [Status]
  → Change a loner group's status to:
      - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
 """
@@ -971,16 +1203,16 @@ async def help(ctx):
 **Quests**
 IMPORTANT: Make sure to add the loner's name to the database before assigning or retrieving quests.
 
-!questgive "Loner Name" "Quest Title" [notes]
+/questgive "Loner Name" "Quest Title" [notes]
  → Assign a quest to an existing loner.
 
-!questshowplayer "Loner Name"
+/questshowplayer "Loner Name"
  → Show active quests for a chosen loner.
 
-!questshowall 
+/questshowall 
  → Show all active quests for your faction.
 
-!questgivereward "Loner Name" [quest_id] "Reward" [reputation]
+/questgivereward "Loner Name" [quest_id] "Reward" [reputation]
  → Complete a quest and grant rewards/reputation.
 """
 
@@ -988,10 +1220,10 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Group Quests**
-!questgivelonergroup "Group Name" "Quest Title" [notes]
+/questgivelonergroup "Group Name" "Quest Title" [notes]
  → Assign a quest to every loner in a group.
 
-!questgiverewardlonergroup "Group Name" "Quest Title" "Reward" [reputation]
+/questgiverewardlonergroup "Group Name" "Quest Title" "Reward" [reputation]
  → Complete a group quest and reward every group member.
 """
 
@@ -999,18 +1231,18 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Utility**
-!ping 
+/ping 
  → Check if bot is alive.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
-    await ctx.send(factionSetup)
-    await ctx.send(players)
-    await ctx.send(lonerGroups)
-    await ctx.send(quests)
-    await ctx.send(groupQuests)
-    await ctx.send(utility)
+    await interaction.response.send_message(factionSetup, ephemeral=True)
+    await interaction.followup.send(players, ephemeral=True)
+    await interaction.followup.send(lonerGroups, ephemeral=True)
+    await interaction.followup.send(quests, ephemeral=True)
+    await interaction.followup.send(groupQuests, ephemeral=True)
+    await interaction.followup.send(utility, ephemeral=True)
 
 @bot.event
 async def on_command_error(ctx, error):
