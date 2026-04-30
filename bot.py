@@ -993,6 +993,7 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
     await ctx.send(message)
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
@@ -1004,7 +1005,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.CommandNotFound):
         return
     else:
-        await ctx.send("An unexpected error occurred.")
+        await ctx.send(f"Unexpected error: `{type(error).__name__}`")
         raise error
 
 bot.run(token)
