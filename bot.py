@@ -42,16 +42,17 @@ def getFactionForGuild(guildId):
 
 
 def playerExists(guildId, factionName, playerName):
+    def lonerGroupExists(guildId, factionName, groupName):
     db = getDbConnection()
     cursor = db.cursor()
 
     cursor.execute(
         """
         SELECT 1
-        FROM player_stats
-        WHERE guild_id = %s AND faction = %s AND player_name = %s
+        FROM loner_groups
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
         """,
-        (guildId, factionName, playerName)
+        (guildId, factionName, groupName)
     )
 
     result = cursor.fetchone()
@@ -911,12 +912,12 @@ async def help(ctx):
 !lonerremove "Loner Name" 
  → Remove a loner from your faction database.
 
-!lonerstats "Loner Name" 
+!lonerstatus "Loner Name" 
  → Show status, completed quests, and reputation.
 
 !lonereditstatus "Loner Name" [Status]
  → Change a loner's status to:
-     - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
+     - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -935,7 +936,7 @@ async def help(ctx):
 
 !lonergroupeditstatus "Group Name" [Status]
  → Change a loner group's status to:
-     - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
+     - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
