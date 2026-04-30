@@ -913,7 +913,7 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
 
 @bot.command()
 async def help(ctx):
-    message = """
+    factionSetup = """
 **📜 Bot Commands**
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -921,14 +921,18 @@ async def help(ctx):
 **Faction Setup**
 !setupfaction [Faction] 
  → Assign this server to a faction. Admin only.
+
 !faction 
  → Show this server's assigned faction.
+"""
 
+    players = """
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Players**
 !loneradd "Loner Name" 
  → Add a loner to your faction database.
+
 !lonerremove "Loner Name" 
  → Remove a loner from your faction database.
 
@@ -938,7 +942,9 @@ async def help(ctx):
 !lonereditstatus "Loner Name" [Status]
  → Change a loner's status to:
      - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
+"""
 
+    lonerGroups = """
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Loner Groups**
@@ -957,7 +963,9 @@ async def help(ctx):
 !lonergroupeditstatus "Group Name" [Status]
  → Change a loner group's status to:
      - Hostile, Untrustworthy, Neutral, Known, Trustworthy, Respected.
+"""
 
+    quests = """
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Quests**
@@ -974,7 +982,9 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 
 !questgivereward "Loner Name" [quest_id] "Reward" [reputation]
  → Complete a quest and grant rewards/reputation.
+"""
 
+    groupQuests = """
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Group Quests**
@@ -983,7 +993,9 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 
 !questgiverewardlonergroup "Group Name" "Quest Title" "Reward" [reputation]
  → Complete a group quest and reward every group member.
+"""
 
+    utility = """
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Utility**
@@ -992,7 +1004,13 @@ IMPORTANT: Make sure to add the loner's name to the database before assigning or
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
-    await ctx.send(message)
+
+    await ctx.send(factionSetup)
+    await ctx.send(players)
+    await ctx.send(lonerGroups)
+    await ctx.send(quests)
+    await ctx.send(groupQuests)
+    await ctx.send(utility)
 
 @bot.event
 async def on_command_error(ctx, error):
