@@ -287,6 +287,133 @@ async def lonerstats(ctx, player_name: str):
         f"Reputation: **{stats['reputation']}**"
     )
 
+@bot.command()
+async def lonergroupcreate(ctx, group_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    group_name = group_name.strip()
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO loner_groups (guild_id, faction, group_name)
+            VALUES (%s, %s, %s)
+            """,
+            (guildId, factionName, group_name)
+        )
+
+        db.commit()
+        await ctx.send(f"Loner group **{group_name}** created for **{factionName}**.")
+
+    except mysql.connector.IntegrityError:
+        await ctx.send(f"Loner group **{group_name}** already exists for **{factionName}**.")
+
+    finally:
+        cursor.close()
+        db.close()
+
+
+@bot.command()
+async def lonergroupmemberadd(ctx, group_name: str, player_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    group_name = group_name.strip()
+    player_name = player_name.strip()
+
+    if not playerExists(guildId, factionName, player_name):
+        await ctx.send(f"Player **{player_name}** not found in **{factionName}**.")
+        return
+
+    db = getDbConnection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT 1
+        FROM loner_groups
+        WHERE guild_id = %s AND faction = %s AND group_name = %s
+        """,
+        (guildId, factionName, group_name)
+    )
+
+    group = cursor.fetchone()
+
+    if not group:
+        cursor.close()
+        db.close()
+        await ctx.send(f"Loner group **{group_name}** not found in **{factionName}**.")
+        return
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO loner_group_members (guild_id, faction, group_name, player_name)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (guildId, factionName, group_name, player_name)
+        )
+
+        db.commit()
+        await ctx.send(f"Added **{player_name}** to loner group **{group_name}**.")
+
+    except mysql.connector.IntegrityError:
+        await ctx.send(f"**{player_name}** is already in **{group_name}**.")
+
+    finally:
+        cursor.close()
+        db.close()
+
+
+@bot.command()
+async def lonergroupmemberremove(ctx, group_name: str, player_name: str):
+    guildId = ctx.guild.id
+    factionName = getFactionForGuild(guildId)
+
+    if not factionName:
+        await ctx.send("This server has not been assigned to a faction yet.")
+        return
+
+    group_name = group_name.strip()
+    player_name = player_name.strip()
+
+    db = getDbConnection()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM loner_group_members
+        WHERE guild_id = %s
+        AND faction = %s
+        AND group_name = %s
+        AND player_name = %s
+        """,
+        (guildId, factionName, group_name, player_name)
+    )
+
+    db.commit()
+    removedCount = cursor.rowcount
+
+    cursor.close()
+    db.close()
+
+    if removedCount == 0:
+        await ctx.send(f"**{player_name}** was not found in **{group_name}**.")
+        return
+
+    await ctx.send(f"Removed **{player_name}** from loner group **{group_name}**.")
 
 @bot.command()
 async def questgive(ctx, player_name: str, quest: str, *, notes: str = ""):
@@ -508,58 +635,58 @@ async def help(ctx):
 !faction 
  → Show this server's assigned faction.
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 **Players**
 !loneradd "Loner Name" 
  → Add a loner to your faction database.
 !lonerremove "Loner Name" 
- → Remove a loner to your faction database.
+ → Remove a loner from your faction database.
 
 !lonerstats "Loner Name" 
- → Show completed quest count and reputation total.
+ → Show status, completed quests, and reputation.
 
- !lonereditstatus "Loner Name" [Status]
-  → Change a loner's status to:
-      - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
+!lonereditstatus "Loner Name" [Status]
+ → Change a loner's status to:
+     - Hostile, Untrustworthy, Neutral, Known, Trusted, Respected.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+**Loner Groups**
+!lonergroupcreate "Group Name"
+ → Create a loner group for your faction.
+
+!lonergroupmemberadd "Group Name" "Loner Name"
+ → Add a loner to a group.
+
+!lonergroupmemberremove "Group Name" "Loner Name"
+ → Remove a loner from a group.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Quests**
-  IMPORTANT: Make sure to add the loner's name to the database before attempting to assign/retrieve quests
+IMPORTANT: Make sure to add the loner's name to the database before assigning or retrieving quests.
 
-!questgive "Player Name" "Quest Title" [notes]
+!questgive "Loner Name" "Quest Title" [notes]
  → Assign a quest to an existing loner.
 
-!questshowplayer "Player Name"
+!questshowplayer "Loner Name"
  → Show active quests for a chosen loner.
 
 !questshowall 
  → Show all active quests for your faction.
 
 !questgivereward "Loner Name" [quest_id] "Reward" [reputation]
- → Complete a quest once a loner has turned it in. Don't forget to actually reward the loner in-game!
+ → Complete a quest and grant rewards/reputation.
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 **Utility**
 !ping 
  → Check if bot is alive.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
     await ctx.send(message)
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Missing input. Use `!help` to see the correct command format.")
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send("Invalid input type. Check your numbers and use quotes around multi-word names or quests.")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("You do not have permission to use this command.")
-    elif isinstance(error, commands.CommandNotFound):
-        return
-    else:
-        await ctx.send("An unexpected error occurred.")
-        raise error
-
 
 bot.run(token)
