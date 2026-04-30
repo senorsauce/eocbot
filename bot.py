@@ -43,17 +43,17 @@ def getFactionForGuild(guildId):
 
 def playerExists(guildId, factionName, playerName):
     def lonerGroupExists(guildId, factionName, groupName):
-    db = getDbConnection()
-    cursor = db.cursor()
+        db = getDbConnection()
+        cursor = db.cursor()
 
-    cursor.execute(
-        """
-        SELECT 1
-        FROM loner_groups
-        WHERE guild_id = %s AND faction = %s AND group_name = %s
-        """,
-        (guildId, factionName, groupName)
-    )
+        cursor.execute(
+            """
+            SELECT 1
+            FROM loner_groups
+            WHERE guild_id = %s AND faction = %s AND group_name = %s
+            """,
+            (guildId, factionName, groupName)
+        )
 
     result = cursor.fetchone()
 
