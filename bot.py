@@ -421,7 +421,7 @@ async def questshowall(ctx):
         else:
             playerName, notes = "Unknown", description
 
-        message += f"`{quest['id']}` — **{playerName}**: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
+        message += f"`ID: {quest['id']}` — **{playerName}**: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
 
     await ctx.send(message)
 
@@ -511,6 +511,8 @@ async def help(ctx):
 **Players**
 !loneradd "Loner Name" 
  → Add a loner to your faction database.
+!lonerremove "Loner Name" 
+ → Remove a loner to your faction database.
 
 !lonerstats "Loner Name" 
  → Show completed quest count and reputation total.
