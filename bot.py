@@ -281,7 +281,7 @@ async def lonerstats(ctx, player_name: str):
         status = "Neutral"
 
     await ctx.send(
-        f"**{player_name} — {factionName}**\n"
+        f"**'{player_name}'**"
         f"Status: **{status}**\n"
         f"Completed Quests: **{stats['numQuestsCompleted']}**\n"
         f"Reputation: **{stats['reputation']}**"
@@ -421,7 +421,7 @@ async def questshowall(ctx):
         else:
             playerName, notes = "Unknown", description
 
-        message += f"`ID: {quest['id']}` — **{playerName}**: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
+        message += f"`Quest ID: {quest['id']}` — **'{playerName}'** tasked with: {quest['title']}\nNotes: {notes if notes else 'None'}\n\n"
 
     await ctx.send(message)
 
