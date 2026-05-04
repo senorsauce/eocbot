@@ -1,2 +1,4 @@
 discord.py
 mysql-connector-python
+gspread
+google-auth
