@@ -1,8 +1,10 @@
 import os
+import json
 import discord
+import gspread
 import mysql.connector
 from discord.ext import commands
-
+from google.oauth2.service_account import Credentials
 token = os.getenv("DISCORD_TOKEN")
 
 if not token:
@@ -82,6 +84,41 @@ def lonerGroupExists(guildId, factionName, groupName):
 
     return result is not None
 
+def getGoogleSheet():
+    serviceAccountInfo = json.loads(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets.readonly"
+    ]
+
+    credentials = Credentials.from_service_account_info(
+        serviceAccountInfo,
+        scopes=scopes
+    )
+
+    client = gspread.authorize(credentials)
+
+    sheetId = os.getenv("GOOGLE_SHEET_ID")
+    spreadsheet = client.open_by_key(sheetId)
+
+    return spreadsheet.worksheet("Artifacts")
+
+
+def getArtifactRows():
+    worksheet = getGoogleSheet()
+    return worksheet.get_all_records()
+
+
+def cleanCell(value):
+    if value is None:
+        return "?"
+
+    value = str(value).strip()
+
+    if value == "":
+        return "?"
+
+    return value
 
 @bot.event
 async def on_ready():
@@ -910,6 +947,82 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         f"Reward: **{reward}**\n"
         f"Reputation Gained: **{reputation}**"
     )
+
+@bot.command()
+async def artifact(ctx, name: str, quality: str = None):
+    artifactName = name.strip().lower()
+
+    qualityOrder = ["Excellent", "Great", "Good", "Common", "Bad"]
+
+    statColumns = [
+        ("projectile_armor", "PROJECTILE ARMOR"),
+        ("melee_armor", "MELEE ARMOR"),
+        ("gravitational_protection", "GRAVITATIONAL PROTECTION"),
+        ("stamina_regeneration", "STAMINA REGENERATION"),
+        ("carry_capacity", "CARRY CAPACITY")
+    ]
+
+    if quality:
+        quality = quality.strip().capitalize()
+
+        if quality not in qualityOrder:
+            await ctx.send(f"Invalid quality. Use one of: {', '.join(qualityOrder)}")
+            return
+
+    rows = getArtifactRows()
+
+    matchingRows = [
+        row for row in rows
+        if str(row.get("artifact_name", "")).strip().lower() == artifactName
+    ]
+
+    if not matchingRows:
+        await ctx.send(f"Artifact **{name}** not found.")
+        return
+
+    if quality:
+        matchingRows = [
+            row for row in matchingRows
+            if str(row.get("quality", "")).strip().lower() == quality.lower()
+        ]
+
+        if not matchingRows:
+            await ctx.send(f"Artifact **{name}** has no data for quality **{quality}**.")
+            return
+
+    displayName = cleanCell(matchingRows[0].get("artifact_name"))
+    radiation = cleanCell(matchingRows[0].get("radiation"))
+
+    rowsByQuality = {}
+
+    for row in matchingRows:
+        rowQuality = cleanCell(row.get("quality"))
+        rowsByQuality[rowQuality] = row
+
+    qualitiesToShow = [quality] if quality else qualityOrder
+
+    message = f"**{displayName}**\n"
+    message += f"Radiation Emission: {radiation} msv\n"
+    message += "-\n\n"
+
+    for qualityName in qualitiesToShow:
+        row = rowsByQuality.get(qualityName)
+
+        if not row:
+            continue
+
+        message += f"**{qualityName}**\n"
+
+        for columnName, displayStatName in statColumns:
+            value = cleanCell(row.get(columnName))
+            message += f"{displayStatName}: {value}\n"
+
+        message += "\n"
+
+    if len(message) > 1900:
+        message = message[:1900] + "\n\nMessage cut off because it is too long."
+
+    await ctx.send(message)
 
 @bot.command()
 async def help(ctx):
