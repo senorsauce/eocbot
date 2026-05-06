@@ -955,12 +955,16 @@ async def artifact(ctx, name: str, quality: str = None):
 
     qualityOrder = ["Excellent", "Great", "Good", "Common", "Bad"]
 
-    statColumns = [
-        ("projectile_armor", "PROJECTILE ARMOR"),
-        ("melee_armor", "MELEE ARMOR"),
-        ("gravitational_protection", "GRAVITATIONAL PROTECTION"),
-        ("stamina_regeneration", "STAMINA REGENERATION"),
-        ("carry_capacity", "CARRY CAPACITY")
+    statOrder = [
+        "Wound Healing",
+        "Radiation Protection",
+        "Projectile Armor",
+        "Melee Armor",
+        "Electrical Protection",
+        "Fire Protection",
+        "Gravitational Protection",
+        "Stamina Regeneration",
+        "Carry Capacity"
     ]
 
     if quality:
@@ -988,23 +992,37 @@ async def artifact(ctx, name: str, quality: str = None):
     displayName = cleanCell(matchingRows[0].get("artifact_name"))
     radiation = cleanCell(matchingRows[0].get("radiation"))
 
-    rowsByQuality = {}
+    artifactData = {}
 
     for row in matchingRows:
         rowQuality = cleanCell(row.get("quality"))
+        statName = cleanCell(row.get("stat_name"))
+        statValue = cleanCell(row.get("stat_value"))
+        statUnit = cleanCell(row.get("stat_unit"))
+
+        normalizedQuality = None
 
         for validQuality in qualityOrder:
             if rowQuality.lower() == validQuality.lower():
-                rowsByQuality[validQuality] = row
+                normalizedQuality = validQuality
                 break
+
+        if not normalizedQuality:
+            continue
+
+        if normalizedQuality not in artifactData:
+            artifactData[normalizedQuality] = {}
+
+        if statValue == "?":
+            artifactData[normalizedQuality][statName] = "?"
+        else:
+            artifactData[normalizedQuality][statName] = f"{statValue}{'' if statUnit == '?' else statUnit}"
 
     qualitiesToShow = [quality] if quality else qualityOrder
 
-    if quality and quality not in rowsByQuality:
+    if quality and quality not in artifactData:
         await ctx.send(f"Artifact **{name}** has no data for quality **{quality}**.")
         return
-
-    sections = []
 
     header = (
         f"**{displayName}**\n"
@@ -1012,14 +1030,16 @@ async def artifact(ctx, name: str, quality: str = None):
         f"-\n\n"
     )
 
-    for qualityName in qualitiesToShow:
-        row = rowsByQuality.get(qualityName, {})
+    sections = []
 
+    for qualityName in qualitiesToShow:
         section = f"**{qualityName}**\n"
 
-        for columnName, displayStatName in statColumns:
-            value = cleanCell(row.get(columnName))
-            section += f"{displayStatName}: {value}\n"
+        qualityStats = artifactData.get(qualityName, {})
+
+        for statName in statOrder:
+            value = qualityStats.get(statName, "?")
+            section += f"{statName.upper()}: {value}\n"
 
         section += "\n"
         sections.append(section)
