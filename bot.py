@@ -1040,7 +1040,6 @@ async def artifact(ctx, name: str, quality: str = None):
 
     for message in messages:
         await ctx.send(message)
-
 @bot.command()
 async def help(ctx):
     factionSetup = """
