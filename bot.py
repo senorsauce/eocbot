@@ -980,16 +980,6 @@ async def artifact(ctx, name: str, quality: str = None):
         await ctx.send(f"Artifact **{name}** not found.")
         return
 
-    if quality:
-        matchingRows = [
-            row for row in matchingRows
-            if str(row.get("quality", "")).strip().lower() == quality.lower()
-        ]
-
-        if not matchingRows:
-            await ctx.send(f"Artifact **{name}** has no data for quality **{quality}**.")
-            return
-
     displayName = cleanCell(matchingRows[0].get("artifact_name"))
     radiation = cleanCell(matchingRows[0].get("radiation"))
 
@@ -997,32 +987,59 @@ async def artifact(ctx, name: str, quality: str = None):
 
     for row in matchingRows:
         rowQuality = cleanCell(row.get("quality"))
+
+        # Normalize quality casing so "excellent", "Excellent", etc. still work
+        for validQuality in qualityOrder:
+            if rowQuality.lower() == validQuality.lower():
+                rowQuality = validQuality
+                break
+
         rowsByQuality[rowQuality] = row
 
-    qualitiesToShow = [quality] if quality else qualityOrder
+    if quality:
+        qualitiesToShow = [quality]
+    else:
+        qualitiesToShow = qualityOrder
 
-    message = f"**{displayName}**\n"
-    message += f"Radiation Emission: {radiation} msv\n"
-    message += "-\n\n"
+    if quality and quality not in rowsByQuality:
+        await ctx.send(f"Artifact **{name}** has no data for quality **{quality}**.")
+        return
+
+    sections = []
+
+    header = (
+        f"**{displayName}**\n"
+        f"Radiation Emission: {radiation} msv\n"
+        f"-\n\n"
+    )
 
     for qualityName in qualitiesToShow:
-        row = rowsByQuality.get(qualityName)
+        row = rowsByQuality.get(qualityName, {})
 
-        if not row:
-            continue
-
-        message += f"**{qualityName}**\n"
+        section = f"**{qualityName}**\n"
 
         for columnName, displayStatName in statColumns:
             value = cleanCell(row.get(columnName))
-            message += f"{displayStatName}: {value}\n"
+            section += f"{displayStatName}: {value}\n"
 
-        message += "\n"
+        section += "\n"
+        sections.append(section)
 
-    if len(message) > 1900:
-        message = message[:1900] + "\n\nMessage cut off because it is too long."
+    messages = []
+    currentMessage = header
 
-    await ctx.send(message)
+    for section in sections:
+        if len(currentMessage) + len(section) > 1900:
+            messages.append(currentMessage)
+            currentMessage = section
+        else:
+            currentMessage += section
+
+    if currentMessage:
+        messages.append(currentMessage)
+
+    for message in messages:
+        await ctx.send(message)
 
 @bot.command()
 async def help(ctx):
