@@ -956,12 +956,12 @@ async def artifact(ctx, name: str, quality: str = None):
     qualityOrder = ["Excellent", "Great", "Good", "Common", "Bad"]
 
     statOrder = [
-        "Wound Healing",
         "Radiation Protection",
         "Projectile Armor",
         "Melee Armor",
         "Electrical Protection",
         "Fire Protection",
+        "Wound Healing",
         "Gravitational Protection",
         "Stamina Regeneration",
         "Carry Capacity"
@@ -982,7 +982,7 @@ async def artifact(ctx, name: str, quality: str = None):
 
     matchingRows = [
         row for row in rows
-        if str(row.get("artifact_name", "")).strip().lower() == artifactName
+        if cleanCell(row.get("artifact_name")).lower() == artifactName
     ]
 
     if not matchingRows:
@@ -990,33 +990,51 @@ async def artifact(ctx, name: str, quality: str = None):
         return
 
     displayName = cleanCell(matchingRows[0].get("artifact_name"))
-    radiation = cleanCell(matchingRows[0].get("radiation"))
+
+    radiation = "?"
+    for row in matchingRows:
+        rowRadiation = cleanCell(row.get("radiation"))
+        if rowRadiation != "?":
+            radiation = rowRadiation
+            break
 
     artifactData = {}
 
     for row in matchingRows:
-        rowQuality = cleanCell(row.get("quality"))
-        statName = cleanCell(row.get("stat_name"))
+        rowQualityRaw = cleanCell(row.get("quality"))
+        statNameRaw = cleanCell(row.get("stat_name"))
         statValue = cleanCell(row.get("stat_value"))
         statUnit = cleanCell(row.get("stat_unit"))
 
         normalizedQuality = None
-
         for validQuality in qualityOrder:
-            if rowQuality.lower() == validQuality.lower():
+            if rowQualityRaw.lower() == validQuality.lower():
                 normalizedQuality = validQuality
                 break
 
         if not normalizedQuality:
             continue
 
+        normalizedStatName = None
+        for validStat in statOrder:
+            if statNameRaw.lower() == validStat.lower():
+                normalizedStatName = validStat
+                break
+
+        if not normalizedStatName:
+            normalizedStatName = statNameRaw.title()
+
         if normalizedQuality not in artifactData:
             artifactData[normalizedQuality] = {}
 
         if statValue == "?":
-            artifactData[normalizedQuality][statName] = "?"
+            formattedValue = "?"
         else:
-            artifactData[normalizedQuality][statName] = f"{statValue}{'' if statUnit == '?' else statUnit}"
+            formattedValue = statValue
+            if statUnit != "?":
+                formattedValue += statUnit
+
+        artifactData[normalizedQuality][normalizedStatName] = formattedValue
 
     qualitiesToShow = [quality] if quality else qualityOrder
 
@@ -1033,9 +1051,9 @@ async def artifact(ctx, name: str, quality: str = None):
     sections = []
 
     for qualityName in qualitiesToShow:
-        section = f"**{qualityName}**\n"
-
         qualityStats = artifactData.get(qualityName, {})
+
+        section = f"**{qualityName}**\n"
 
         for statName in statOrder:
             value = qualityStats.get(statName, "?")
