@@ -948,6 +948,7 @@ async def questgivereward(ctx, player_name: str, quest_id: int, reward: str, rep
         f"Reputation Gained: **{reputation}**"
     )
 
+
 @bot.command()
 async def artifact(ctx, name: str, quality: str = None):
     artifactName = name.strip().lower()
@@ -969,7 +970,11 @@ async def artifact(ctx, name: str, quality: str = None):
             await ctx.send(f"Invalid quality. Use one of: {', '.join(qualityOrder)}")
             return
 
-    rows = getArtifactRows()
+    try:
+        rows = getArtifactRows()
+    except Exception as error:
+        await ctx.send(f"Could not read artifact sheet: `{type(error).__name__}`")
+        raise error
 
     matchingRows = [
         row for row in rows
@@ -988,18 +993,12 @@ async def artifact(ctx, name: str, quality: str = None):
     for row in matchingRows:
         rowQuality = cleanCell(row.get("quality"))
 
-        # Normalize quality casing so "excellent", "Excellent", etc. still work
         for validQuality in qualityOrder:
             if rowQuality.lower() == validQuality.lower():
-                rowQuality = validQuality
+                rowsByQuality[validQuality] = row
                 break
 
-        rowsByQuality[rowQuality] = row
-
-    if quality:
-        qualitiesToShow = [quality]
-    else:
-        qualitiesToShow = qualityOrder
+    qualitiesToShow = [quality] if quality else qualityOrder
 
     if quality and quality not in rowsByQuality:
         await ctx.send(f"Artifact **{name}** has no data for quality **{quality}**.")
@@ -1040,6 +1039,7 @@ async def artifact(ctx, name: str, quality: str = None):
 
     for message in messages:
         await ctx.send(message)
+
 @bot.command()
 async def help(ctx):
     factionSetup = """
